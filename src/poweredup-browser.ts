@@ -26,6 +26,8 @@ export class PoweredUP extends EventEmitter {
 
 
     private _connectedHubs: {[uuid: string]: BaseHub} = {};
+    private _scan: boolean = false;
+    private _pendingDevices: BluetoothDevice[] = [];
 
 
     constructor () {
@@ -36,9 +38,9 @@ export class PoweredUP extends EventEmitter {
 
     /**
      * Begin scanning for Powered UP Hub devices.
-     * @method PoweredUP#scan
+     * @method PoweredUP#requestDevice
      */
-    public async scan () {
+    public async requestDevice () {
 
         try {
 
@@ -62,6 +64,10 @@ export class PoweredUP extends EventEmitter {
                 ]
             });
 
+            if (this._scan) {
+                this._watchAdvertisements(device);
+            }
+
             // @ts-ignore
             const server = await device.gatt.connect();
             this._discoveryEventHandler.call(this, server);
@@ -73,6 +79,48 @@ export class PoweredUP extends EventEmitter {
 
     }
 
+
+    /**
+     * Begin scanning for Powered UP Hub devices that were connected before.
+     * @method PoweredUP#scan
+     */
+    public async scan () {
+        try {
+            if (this._scan) {
+                return true;
+            }
+
+            this._scan = true;
+            const devices = await navigator.bluetooth.getDevices();
+
+            debug("Start watching advertisements");
+
+            for (const device of devices) {
+                this._watchAdvertisements(device);
+            }
+
+            return true;
+
+        } catch (err) {
+            debug(err);
+            return false;
+        }
+    }
+
+
+    /**
+     * Stop scanning for Powered UP Hub devices.
+     * @method PoweredUP#stop
+     */
+    public async stop () {
+        if (!this.scan) {
+            return true;
+        }
+
+        debug("Stop watching advertisements");
+        this._scan = false;
+        return true;
+    }
 
     /**
      * Retrieve a list of Powered UP Hubs.
@@ -128,6 +176,45 @@ export class PoweredUP extends EventEmitter {
     }
 
 
+    private _watchAdvertisements (device: BluetoothDevice) {
+        if (device.watchingAdvertisements) {
+            return;
+        }
+
+        device.addEventListener('advertisementreceived', async (event) => {
+            // Chrome 87 does not support unwatchAdvertisements yet.
+            if (!this._scan) {
+                return;
+            }
+
+            // If the connection to the hub was lost, it is not possible
+            // to re-connect as long as 'connected' is still true.
+            if (device.gatt === undefined || device.gatt.connected || this._pendingDevices.includes(device)) {
+                debug('Ignored advertisement from ' + device.id);
+                return;
+            }
+
+            // Ignore further reconnects for one second.
+            this._pendingDevices.push(device);
+
+            try {
+                const server = await device.gatt.connect();
+                debug(device.id + ' connected');
+                this._discoveryEventHandler.call(this, server);
+            } catch (err) {
+                debug(err);
+            } finally {
+                setTimeout(() => this._pendingDevices.splice(this._pendingDevices.indexOf(device), 1), 1000);
+            }
+        });
+
+        device.addEventListener('gattserverdisconnected', async (event) => debug(device.id + ' disconnected'));
+        device.watchAdvertisements();
+
+        debug('Watching advertisements of ' + device.id);
+    }
+
+
     private _determineLPF2HubType (device: IBLEAbstraction): Promise<Consts.HubType> {
         return new Promise((resolve) => {
             let buf: Buffer = Buffer.alloc(0);
@@ -178,14 +265,14 @@ export class PoweredUP extends EventEmitter {
         try {
             await device.discoverCharacteristicsForService(Consts.BLEService.WEDO2_SMART_HUB);
             hubType = Consts.HubType.WEDO2_SMART_HUB;
-        // tslint:disable-next-line
+            // tslint:disable-next-line
         } catch (error) {}
         try {
             if (hubType !== Consts.HubType.WEDO2_SMART_HUB) {
                 await device.discoverCharacteristicsForService(Consts.BLEService.LPF2_HUB);
                 isLPF2Hub = true;
             }
-        // tslint:disable-next-line
+            // tslint:disable-next-line
         } catch (error) {}
 
         if (isLPF2Hub) {

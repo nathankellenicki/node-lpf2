@@ -7,19 +7,10 @@ div {
     margin-bottom: 10px;
 }
 
-div#current_color {
-    position: absolute;
-    top: 61px;
-    left: 120px;
-}
-
 div#color {
     border: 1px solid #666666;
     width: 20px;
     height: 20px;
-    position: absolute;
-    top: -4px;
-    left: 92px;
 }
 
 table td {

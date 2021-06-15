@@ -57,8 +57,8 @@ setInterval(() => {
     const hubs = poweredUP.getHubs(); // Get an array of all connected hubs
     document.getElementById("color").style.backgroundColor = PoweredUP.Consts.ColorNames[color];
     hubs.forEach(async (hub) => {
-        const led = await hub.waitForDeviceByType(PoweredUP.Consts.DeviceType.HUB_LED);
-        led.setColor(color); // Set the color
+         const led = await hub.waitForDeviceByType(PoweredUP.Consts.DeviceType.HUB_LED);
+         led.setColor(color); // Set the color
     })
     color++;
     if (color > 10) {
@@ -82,7 +82,23 @@ const renderHub = function (hub) {
 
 const scan = function () {
     if (PoweredUP.isWebBluetooth) {
-        poweredUP.scan(); // Start scanning for hubs
+        poweredUP.scan(); // Start scanning for known hubs
+    } else {
+        alert("Your browser does not support the Web Bluetooth specification.");
+    }
+}
+
+const stop = function () {
+    if (PoweredUP.isWebBluetooth) {
+        poweredUP.stop(); // Stop scanning for known hubs
+    } else {
+        alert("Your browser does not support the Web Bluetooth specification.");
+    }
+}
+
+const requestDevice = function () {
+    if (PoweredUP.isWebBluetooth) {
+        poweredUP.requestDevice(); // Start scanning for new hubs
     } else {
         alert("Your browser does not support the Web Bluetooth specification.");
     }
@@ -99,9 +115,11 @@ const disconnect = function (uuid) {
 <body>
 <div><h1>Web Bluetooth node-poweredup Example</h1></div>
 <div>
-<a class="button" href="#" onclick="scan();">Add new Hub</a>
+<a class="button" href="#" onclick="scan();">Scan for known hubs</a>
+<a class="button" href="#" onclick="stop();">Stop scan</a>
+<a class="button" href="#" onclick="requestDevice();">Add new hub</a>
 </div>
-<div id="current_color">
+<div>
 <span>Current Color: </span><div id="color">&nbsp;</div>
 </div>
 <div>
